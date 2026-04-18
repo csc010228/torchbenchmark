@@ -1,31 +1,14 @@
-import argparse
-import itertools
-import json
 import time
-from datetime import datetime
-from typing import Dict, List
-
-import numpy as np
-import yaml
+from typing import Dict
 
 from ..utils import add_path, dump_output, get_output_dir, get_output_json, REPO_PATH
 
+import torch
+
 with add_path(REPO_PATH):
-    from torchbenchmark import (
-        ModelTask,
-    )
-    from torchbenchmark._components._impl.workers.subprocess_rpc import (
-        ChildTraceException,
-        UnserializableException,
-    )
     from torchbenchmark.util.experiment.instantiator import (
-        list_models,
         load_model,
         TorchBenchModelConfig,
-    )
-    from torchbenchmark.util.experiment.metrics import (
-        get_model_test_metrics,
-        TorchBenchModelMetrics,
     )
     from torchbenchmark.util.model import (
         BenchmarkModel
@@ -37,6 +20,10 @@ with add_path(REPO_PATH):
         is_staged_train_test
     )
 
+"""
+注意： 下面的计时器都需要进行 CUDA synchronization ，以确保计时的准确性
+所以如果此时 GPU 上有其他任务，那么可能会导致计时不准确
+"""
 all_latency = None
 class AllTimer:
     def __enter__(self):
@@ -44,6 +31,7 @@ class AllTimer:
         return self
         
     def __exit__(self, exc_type, exc_value, traceback):
+        torch.cuda.synchronize()
         self.t1 = time.time_ns()
         global all_latency
         all_latency = (self.t1 - self.t0)
@@ -55,6 +43,7 @@ class ForwardTimer:
         return self
         
     def __exit__(self, exc_type, exc_value, traceback):
+        torch.cuda.synchronize()
         self.t1 = time.time_ns()
         global forward_latency
         forward_latency = (self.t1 - self.t0)
@@ -66,6 +55,7 @@ class BackwardTimer:
         return self
         
     def __exit__(self, exc_type, exc_value, traceback):
+        torch.cuda.synchronize()
         self.t1 = time.time_ns()
         global backward_latency
         backward_latency = (self.t1 - self.t0)
@@ -77,6 +67,7 @@ class OptimizerTimer:
         return self
         
     def __exit__(self, exc_type, exc_value, traceback):
+        torch.cuda.synchronize()
         self.t1 = time.time_ns()
         global optimizer_latency
         optimizer_latency = (self.t1 - self.t0)
@@ -213,15 +204,15 @@ def get_model_train_stage_latency(model: BenchmarkModel) -> Dict[str, int]:
             f"Model {model.name} already has train method defined."
         )
 
-    # 清空之前的计时数据
-    global all_latency
-    # all_latency = []
-    global forward_latency
-    # forward_latency = []
-    global backward_latency
-    # backward_latency = []
-    global optimizer_latency
-    # optimizer_latency = []
+    # # 清空之前的计时数据
+    # global all_latency
+    # # all_latency = []
+    # global forward_latency
+    # # forward_latency = []
+    # global backward_latency
+    # # backward_latency = []
+    # global optimizer_latency
+    # # optimizer_latency = []
 
     # 运行训练任务
     # 会执行 BenchmarkModel 的 _invoke_staged_train_test() 方法

@@ -1,31 +1,17 @@
 import argparse
 import itertools
 import json
-import time
-from datetime import datetime
 from typing import List
 from pathlib import Path
-
-import numpy as np
-import yaml
 
 from ..utils import add_path, dump_output, get_output_dir, get_output_json, REPO_PATH
 
 from .stage_train import load_model_with_stage_timer, get_model_train_stage_latency
 
 with add_path(REPO_PATH):
-    from torchbenchmark._components._impl.workers.subprocess_rpc import (
-        ChildTraceException,
-        UnserializableException,
-    )
     from torchbenchmark.util.experiment.instantiator import (
         list_models,
-        load_model_isolated,
         TorchBenchModelConfig,
-    )
-    from torchbenchmark.util.experiment.metrics import (
-        get_model_test_metrics,
-        TorchBenchModelMetrics,
     )
 
 BM_NAME = "stage-latency"
@@ -115,7 +101,7 @@ def generate_filter(args: argparse.Namespace):
 def run(args: List[str]):
     args = parse_args(args)
     # output_dir = get_output_dir(BM_NAME)
-    output_dir = args.output
+    output = args.output
     models = list_models()
     batch_sizes = [args.batch_size] * len(models)
     cfgs = list(itertools.chain(*map(generate_model_config, models, batch_sizes)))
@@ -124,7 +110,7 @@ def run(args: List[str]):
     full_results = []
     for cfg in filter(cfg_filter, cfgs):
         cfg_dict = cfg.__dict__
-        cfg_dict["output_dir"] = output_dir
+        cfg_dict["output"] = output
         cfg_dict["iterations"] = args.iterations
         single_cfg_result = {
             "cfg": cfg_dict, 
@@ -133,33 +119,29 @@ def run(args: List[str]):
             "backward_latencies": [], 
             "optimizer_latencies": [], 
         }
-        for _iteration in range(args.iterations):
-            print(f"[iteration {_iteration}/{args.iterations}] Running {cfg}")
-            try:
-                model = load_model_with_stage_timer(cfg)
+        try:
+            model = load_model_with_stage_timer(cfg)
+            for _iteration in range(args.iterations):
+                print(f"[iteration {_iteration}/{args.iterations}] Running {cfg}")
                 metrics = get_model_train_stage_latency(model)
                 single_cfg_result["all_latencies"].append(metrics["all"])
                 single_cfg_result["forward_latencies"].append(metrics["forward"])
                 single_cfg_result["backward_latencies"].append(metrics["backward"])
                 single_cfg_result["optimizer_latencies"].append(metrics["optimizer"])
-            finally:
-                # Remove model reference to trigger deletion in gc
-                model = None
+        finally:
+            # Remove model reference to trigger deletion in gc
+            model = None
         full_results.append(single_cfg_result)
 
-    if output_dir is None:
+    if output is None:
         print(full_results)
         return
     
     output_json = get_output_json(BM_NAME, full_results)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(exist_ok=True, parents=True)
-    fname = "{}-{}.json".format(
-        BM_NAME, 
-        datetime.fromtimestamp(time.time()).strftime("%Y%m%d%H%M%S")
-    )
-    full_fname = output_dir.joinpath(fname)
-    with open(full_fname, "w") as f:
+    output = Path(output)
+    if output.suffix != ".json":
+        output = output.with_suffix(".json")
+    output.parent.mkdir(exist_ok=True, parents=True)
+    with open(output, "w") as f:
         json.dump(full_results, f, indent=4)
-    # output userbenchmark metrics in the .userbenchmark/model-stableness directory
     dump_output(BM_NAME, output_json)
