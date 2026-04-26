@@ -21,8 +21,9 @@ from torchbenchmark.util.framework.transformers.text_classification.dataset impo
     prep_labels,
     preprocess_dataset,
 )
+from torch.optim import AdamW
 from transformers import (
-    AdamW,
+    # AdamW,
     AutoConfig,
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -172,7 +173,8 @@ class Model(E2EBenchmarkModel):
             # the samples passed). When using mixed precision, we add `pad_to_multiple_of=8` to pad all tensors to multiple
             # of 8s, which will enable the use of Tensor Cores on NVIDIA hardware with compute capability >= 7.5 (Volta).
             self.data_collator = DataCollatorWithPadding(
-                tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None)
+                # tokenizer, pad_to_multiple_of=(8 if accelerator.use_fp16 else None)
+                tokenizer, pad_to_multiple_of=(8 if accelerator.mixed_precision == "fp16" else None)
             )
 
         train_dataloader = DataLoader(

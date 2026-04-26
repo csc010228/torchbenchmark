@@ -353,7 +353,7 @@ def parse_args(args: List[str]) -> argparse.Namespace:
         help=f"Number of timed iterations per model (default: {DEFAULT_ITERATIONS})",
     )
     parser.add_argument(
-        "--warmup", "-w",
+        "--warmup", "-wi",
         default=DEFAULT_WARMUP,
         type=int,
         help=f"Number of warmup iterations (default: {DEFAULT_WARMUP})",
@@ -379,7 +379,7 @@ def parse_args(args: List[str]) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--output-dir",
+        "--output-dir", "-o",
         default=str(OUTPUT_DIR),
         type=str,
         help=f"Directory to write output files (default: {OUTPUT_DIR})",
