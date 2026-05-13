@@ -36,6 +36,7 @@ def parse_args(args: List[str]):
         help="Number of iterations to run model stage test.",
     )
     parser.add_argument(
+        "-wi",
         "--warmup-iterations",
         default=DEFAULT_WARNUP_ITERATIONS,
         type=int,
